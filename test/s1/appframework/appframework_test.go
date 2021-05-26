@@ -14,6 +14,8 @@
 package s1appfw
 
 import (
+	"os"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -46,6 +48,20 @@ var _ = Describe("s1appfw test", func() {
 
 	Context("Standalone deployment (S1) with App Framework", func() {
 		It("s1, appframework: can deploy a standalone instance with App Framework enabled", func() {
+
+			// Set location for app file download
+			dataBucket := os.Getenv("TEST_BUCKET")
+			location := os.Getenv("ENTERPRISE_LICENSE_LOCATION")
+
+			// Download app file for download and upload to location for spec to point
+			files := []string{"enterprise.lic"}
+			for _, file := range files {
+				filename, _ := testenv.DownloadFileFromS3(dataBucket, file, location)
+				fileObject, _ := os.Open(filename)
+				testenv.UploadFileToS3(dataBucket, filename, "/tmp", fileObject)
+				fileObject.Close()
+			}
+
 			// Create App framework Spec
 			// volumeSpec: Volume name, Endpoint, Path and SecretRef
 			volumeName := "appframework-test-volume-" + testenv.RandomDNSName(3)
