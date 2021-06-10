@@ -19,6 +19,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
+	enterprisev1 "github.com/splunk/splunk-operator/pkg/apis/enterprise/v1"
 	"github.com/splunk/splunk-operator/test/testenv"
 )
 
@@ -85,6 +86,57 @@ var _ = Describe("Licensemaster test", func() {
 			testenv.VerifyLMConfiguredOnPod(deployment, searchHeadPodName)
 			searchHeadPodName = fmt.Sprintf(testenv.SearchHeadPod, deployment.GetName(), 2)
 			testenv.VerifyLMConfiguredOnPod(deployment, searchHeadPodName)
+		})
+	})
+
+	Context("Clustered deployment (C3 - clustered indexer, search head cluster)", func() {
+		It("licensemaster: Splunk Operator can configure a C3 SVA and have apps installed locally on LM", func() {
+
+			// Download License File
+			s3TestDir := "c3lm-" + testenv.RandomDNSName(4)
+			licenseFilePath, err := testenv.DownloadLicenseFromS3Bucket()
+			Expect(err).To(Succeed(), "Unable to download license file")
+
+			// Create License Config Map
+			testenvInstance.CreateLicenseConfigMap(licenseFilePath)
+
+			// Create App framework Spec
+			// volumeSpec: Volume name, Endpoint, Path and SecretRef
+			volumeName := "appframework-test-volume-" + testenv.RandomDNSName(3)
+			volumeSpec := []enterprisev1.VolumeSpec{testenv.GenerateIndexVolumeSpec(volumeName, testenv.GetS3Endpoint(), testenvInstance.GetIndexSecretName(), "aws", "s3")}
+
+			// AppSourceDefaultSpec: Remote Storage volume name and Scope of App deployment
+			appSourceDefaultSpec := enterprisev1.AppSourceDefaultSpec{
+				VolName: volumeName,
+				Scope:   "local",
+			}
+
+			// appSourceSpec: App source name, location and volume name and scope from appSourceDefaultSpec
+			appSourceName := "appframework-" + testenv.RandomDNSName(3)
+			appSourceSpec := []enterprisev1.AppSourceSpec{testenv.GenerateAppSourceSpec(appSourceName, s3TestDir, appSourceDefaultSpec)}
+
+			// appFrameworkSpec: AppSource settings, Poll Interval, volumes, appSources on volumes
+			appFrameworkSpec := enterprisev1.AppFrameworkSpec{
+				Defaults:             appSourceDefaultSpec,
+				AppsRepoPollInterval: 60,
+				VolList:              volumeSpec,
+				AppSources:           appSourceSpec,
+			}
+
+			// Deploy the LM with App Framework
+			_, err = deployment.DeployLicenseMasterWithGivenSpec(deployment.GetName(), appFrameworkSpec)
+			Expect(err).To(Succeed(), "Unable to deploy LM with App framework")
+
+			// Wait for LM to be in READY status
+			testenv.LicenseMasterReady(deployment, testenvInstance)
+
+			// Verify apps are copied at the correct location on LM (/etc/apps/)
+			podName := []string{fmt.Sprintf(testenv.LicenseMasterPod, deployment.GetName(), 0)}
+			testenv.VerifyAppsCopied(deployment, testenvInstance, testenvInstance.GetName(), podName, appListV1, true, false)
+
+			// Verify apps are installed on LM
+			lmPodName := []string{fmt.Sprintf(testenv.LicenseMasterPod, deployment.GetName(), 0)}
+			testenv.VerifyAppInstalled(deployment, testenvInstance, testenvInstance.GetName(), lmPodName, appListV1, false, "enabled", false, false)
 		})
 	})
 })

@@ -587,7 +587,7 @@ func newSearchHeadClusterWithGivenSpec(name string, ns string, spec enterprisev1
 }
 
 // newLicenseMasterWithGivenSpec create and initializes CR for License Master Kind with Given Spec
-func newLicenseMasterWithGivenSpec(name, ns string, spec enterprisev1.LicenseMasterSpec) *enterprisev1.LicenseMaster {
+func newLicenseMasterWithGivenSpec(name, ns, licenseConfigMapName string, appFrameworkSpec enterprisev1.AppFrameworkSpec) *enterprisev1.LicenseMaster {
 	new := enterprisev1.LicenseMaster{
 		TypeMeta: metav1.TypeMeta{
 			Kind: "LicenseMaster",
@@ -598,7 +598,28 @@ func newLicenseMasterWithGivenSpec(name, ns string, spec enterprisev1.LicenseMas
 			Finalizers: []string{"enterprise.splunk.com/delete-pvc"},
 		},
 
-		Spec: spec,
+		Spec: enterprisev1.LicenseMasterSpec{
+			CommonSplunkSpec: enterprisev1.CommonSplunkSpec{
+				Volumes: []corev1.Volume{
+					{
+						Name: "licenses",
+						VolumeSource: corev1.VolumeSource{
+							ConfigMap: &corev1.ConfigMapVolumeSource{
+								LocalObjectReference: corev1.LocalObjectReference{
+									Name: licenseConfigMapName,
+								},
+							},
+						},
+					},
+				},
+				// TODO: Ensure the license file is actually called "enterprise.lic" when creating the config map
+				LicenseURL: "/mnt/licenses/enterprise.lic",
+				Spec: splcommon.Spec{
+					ImagePullPolicy: "IfNotPresent",
+				},
+			},
+			AppFrameworkConfig: appFrameworkSpec,
+		},
 	}
 
 	return &new

@@ -163,7 +163,6 @@ func (d *Deployment) DeployLicenseMaster(name string) (*enterprisev1.LicenseMast
 	if d.testenv.licenseFilePath == "" {
 		return nil, fmt.Errorf("no license file path specified")
 	}
-
 	lm := newLicenseMaster(name, d.testenv.namespace, d.testenv.licenseCMName)
 	deployed, err := d.deployCR(name, lm)
 	if err != nil {
@@ -553,9 +552,9 @@ func (d *Deployment) DeploySearchHeadClusterWithGivenSpec(name string, spec ente
 }
 
 // DeployLicenseMasterWithGivenSpec deploys the license master with given SPEC
-func (d *Deployment) DeployLicenseMasterWithGivenSpec(name, licenseMasterName string, ansibleConfig string, spec enterprisev1.LicenseMasterSpec) (*enterprisev1.LicenseMaster, error) {
+func (d *Deployment) DeployLicenseMasterWithGivenSpec(name string, appFrameworkSpec enterprisev1.AppFrameworkSpec) (*enterprisev1.LicenseMaster, error) {
 	d.testenv.Log.Info("Deploying license-master", "name", name)
-	lm := newLicenseMasterWithGivenSpec(name, d.testenv.namespace, spec)
+	lm := newLicenseMasterWithGivenSpec(name, d.testenv.namespace, d.testenv.licenseCMName, appFrameworkSpec)
 	deployed, err := d.deployCR(name, lm)
 	if err != nil {
 		return nil, err
